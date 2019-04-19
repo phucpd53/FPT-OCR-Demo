@@ -12,6 +12,6 @@ python run.py
 ```
 `content.json` would be written in the main directory
 ## TODO
-* Extract text from table part
+* Extract text from table part `DONE`
 * Test with other images
 * Web UI
