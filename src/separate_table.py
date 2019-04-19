@@ -7,6 +7,7 @@ import imutils
 from imutils import contours
 from tqdm import tqdm
 import pandas as pd
+from src import util
 
 def run(img):
     kernel = np.ones((5,5),np.uint8)
@@ -62,6 +63,8 @@ def run(img):
         if table_part.shape[0] * table_part.shape[1] <= w * h:
             table_part = img_crop
             other_part = img[0:y, :, :]
+    util.save(other_part, "meta_img.jpg")
+    util.save(table_part, "table_img.jpg")
     return other_part, table_part
 
 """Connected-component analysis of image"""

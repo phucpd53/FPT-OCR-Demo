@@ -1,3 +1,12 @@
+import os
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+DEBUG = True
+debug_folder = "debug"
+os.makedirs(debug_folder, exist_ok=True)
+
 def is_table_header(line, headers):
     '''
     check if line include some key word of headers or not
@@ -43,3 +52,55 @@ def is_next(previous, current, is_phrase=True):
         if min(abs(l_c - l_p), abs(l_c + w_c / 2 - l_p - w_p / 2), abs(l_c + w_c - l_p - w_p)) > ratio_param * h_p:
             return False
         return True
+def remove_horizontal_line(img):
+    # new_table_img = cv2.erode(table_img, np.ones((3,3), np.uint8), iterations=1)
+    _, horizontal = cv2.threshold(img, 200, 255, cv2.THRESH_BINARY)
+
+    # get all horizontal line
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (200,1))
+    horizontal = cv2.dilate(horizontal, kernel, iterations=1)
+
+    # make horizontal line bigger
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (img.shape[1],1))
+    horizontal = cv2.erode(horizontal, kernel, iterations=1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,3))
+    horizontal = cv2.erode(horizontal, kernel, iterations=1)
+
+
+    horizontal_indx = horizontal == 0
+    new_img = img.copy()
+    new_img[horizontal_indx] = 255
+
+    return new_img
+def get_vertical_line(img):
+    _, img = cv2.threshold(img, 200, 255, cv2.THRESH_BINARY)
+    save(img, "threshold.jpg")
+    # get all horizontal line
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,200))
+    img = cv2.dilate(img, kernel, iterations=1)
+    save(img, "vertical.jpg")
+    vertical_x = []
+    i = 0
+    while i < img.shape[1]:
+        # choose the row in the middle of image to check
+        if img[img.shape[0]//2, i].all() == 0:
+            vertical_x.append(i)
+            i += img.shape[1] // 100
+        else:
+            i += 1
+    return vertical_x
+
+def save(img, name):
+    if DEBUG:
+        cv2.imwrite(os.path.join(debug_folder, name), img)
+    
+def df_to_image(df, img):
+    font_path = "data/fonts-japanese-mincho.ttf"
+    overlay = np.full(img.shape, 255, dtype=np.uint8)
+    pil_image = Image.fromarray(overlay)
+    draw = ImageDraw.Draw(pil_image)
+    for index, row in df.iterrows():
+        if row['conf'] != -1:
+            # cv2.putText(overlay,row['text'],(row['left'],row['top'] + row['height']), cv2.FONT_HERSHEY_SIMPLEX, img.shape[0]/1000.0,0,1,cv2.LINE_AA)
+            draw.text((row['left'],row['top'] + row['height']), row['text'], font=ImageFont.truetype(font_path, np.max(img.shape)//100), fill=0)
+    return np.array(pil_image)

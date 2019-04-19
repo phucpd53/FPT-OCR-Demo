@@ -24,28 +24,16 @@ title = r"ご..書"
 ################################################################
 
 def process_meta(img):
-    table_header = ['ご注文日', '商品ID', '商品名', '数量', '単位', '単価', '小計']
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = cv2.blur(img, ksize=(3, 3))
     _,img = cv2.threshold(img,200,255,cv2.THRESH_BINARY)
-    # dealing with rotated image. Choose the best image's direction based on tesseract confidence score
-    df = None
-    conf = -1 
-    _img = None
-    for i in range(4):
-        img = (np.rot90(img) if i != 0 else img)
-        _df = pytesseract.image_to_data(Image.fromarray(img), lang="jpn", output_type=Output.DATAFRAME)
-        _df.columns = _df.columns.str.strip()
-        _df = _df.dropna()
-        if conf < _df['conf'].mean():
-            conf = _df['conf'].mean()
-            df = _df
-            _img = img.copy()
-
+    
+    df = pytesseract.image_to_data(Image.fromarray(img), lang="jpn", output_type=Output.DATAFRAME)
+    
     df.columns.str.strip()
     df = df.dropna()
     df = df.drop(columns=['level', 'page_num'])
-
+    
     # group text from tesseract's result from dataframe format into block
     all_blocks = []
     for _, block in df.groupby('block_num'):
@@ -56,8 +44,33 @@ def process_meta(img):
                 left, top, height, width = list_lines[0][1]
                 str_block.append(list_lines) 
         all_blocks.append(str_block)
+    tesseract_img = util.df_to_image(df, img)    
+    util.save(tesseract_img, "meta_tesseract.jpg")
     return all_blocks
 
+def process_table(img):
+    table_header = ['ご注文日', '商品ID', '商品名', '数量', '単位', '単価', '小計']
+    table_dict = {}
+    for item in table_header:
+        table_dict[item] = []
+    h, w = img.shape[:2]
+    new_img = util.remove_horizontal_line(img)
+    vertical_lines = util.get_vertical_line(img)
+    for i in range(1, len(vertical_lines)):
+        column_img = new_img[ : h // 2, vertical_lines[i - 1] : vertical_lines[i]]
+        df = pytesseract.image_to_data(Image.fromarray(column_img), lang="jpn", output_type=Output.DATAFRAME)
+        df.columns.str.strip()
+        df = df.dropna()
+        df = df.drop(columns=['level', 'page_num'])
+        for _, block in df.groupby('block_num'):
+            for _, parse in block.groupby('par_num'):
+                for _, line in parse.groupby('line_num'):
+                    text = "".join(line["text"].tolist())
+                    if text in "".join(table_header) or text == " ":
+                        continue
+                    table_dict[table_header[i - 1]].append(text)
+        util.save(column_img, "column_" + str(i) + ".jpg")
+    return table_dict
 
 def row_to_line(rows):
     '''
